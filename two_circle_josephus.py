@@ -11,15 +11,34 @@ Step size k = 2 throughout.
 from collections import deque
 
 
+def _snapshot(circle_a: deque, circle_b: deque, turn: str, eliminated: int, phase: str = "main"):
+    """
+    Create a trace snapshot AFTER an elimination.
+
+    Conventions:
+    - 'A' and 'B' store the current deque order for each circle.
+    - The "pointer" is implicitly the FRONT of each deque (index 0 in the list).
+    - 'turn' indicates which circle performed the elimination ("A" or "B").
+    - 'phase' is "main" during alternating eliminations, and "final" for the head-to-head.
+    """
+    return {
+        "turn": turn,              # A or B
+        "eliminated": eliminated,  # eliminated person ID
+        "A": list(circle_a),       # Circle A state (pointer at index 0)
+        "B": list(circle_b),       # Circle B state (pointer at index 0)
+        "phase": phase,            # main or final
+    }
+
+
 def josephus_eliminate(circle: deque, k: int = 2) -> int:
     """
     Eliminate one person from a circle using the Josephus rule.
     Rotates the deque k-1 times, then removes the front person.
-    
+
     Args:
         circle: deque representing the circle of people
         k: step size (every k-th person is eliminated)
-    
+
     Returns:
         The number of the eliminated person
     """
@@ -28,24 +47,30 @@ def josephus_eliminate(circle: deque, k: int = 2) -> int:
     return eliminated
 
 
-def two_circle_josephus(n: int, k: int = 2, verbose: bool = False) -> int:
+def two_circle_josephus(n: int, k: int = 2, verbose: bool = False, trace: bool = False):
     """
     Simulate the two-circle Josephus variation.
-    
+
     Args:
         n: total number of people (numbered 1 to n)
         k: step size for elimination (default 2)
         verbose: if True, print step-by-step eliminations
-    
+        trace: if True, return (winner, steps) where steps is a list of snapshots
+
     Returns:
-        The number of the winning person
+        If trace=False: the number of the winning person (int)
+        If trace=True:  (winner, steps)
     """
     if n <= 0:
         raise ValueError("n must be a positive integer")
+
+    # Trace list (only used if trace=True)
+    steps = [] if trace else None
+
     if n == 1:
         if verbose:
             print(f"n={n}: Only one person. Winner: 1")
-        return 1
+        return (1, steps) if trace else 1
 
     # Split into two circles
     mid = (n + 1) // 2  # ceil(n/2) — Circle A gets extra if odd
@@ -57,10 +82,9 @@ def two_circle_josephus(n: int, k: int = 2, verbose: bool = False) -> int:
         print(f"  Circle A ({len(circle_a)}): {list(circle_a)}")
         print(f"  Circle B ({len(circle_b)}): {list(circle_b)}")
 
-    # Edge case: n=1 already handled; n=2 means circle_b has 1 person
-    # If circle_b is empty (shouldn't happen for n>=2), just solve circle_a
+    # If circle_b is empty (only possible when n=1, already handled), just return circle_a[0]
     if len(circle_b) == 0:
-        return circle_a[0]
+        return (circle_a[0], steps) if trace else circle_a[0]
 
     # Elimination phase: alternate eliminating from each circle
     round_num = 1
@@ -68,18 +92,23 @@ def two_circle_josephus(n: int, k: int = 2, verbose: bool = False) -> int:
         if verbose:
             print(f"  Round {round_num}:", end="")
 
-        # Determine order: larger circle goes first
+        # Determine order: larger circle goes first (Circle A goes first on tie)
         if len(circle_a) >= len(circle_b):
-            # Circle A goes first (also goes first on tie)
+            # Circle A goes first
             if len(circle_a) > 1:
                 eliminated_a = josephus_eliminate(circle_a, k)
+                if trace:
+                    steps.append(_snapshot(circle_a, circle_b, turn="A", eliminated=eliminated_a, phase="main"))
                 if verbose:
                     print(f" Circle A eliminates {eliminated_a} → {list(circle_a)}", end="")
             elif verbose:
                 print(f" Circle A has 1 left ({circle_a[0]}), skips", end="")
 
+            # Then Circle B
             if len(circle_b) > 1:
                 eliminated_b = josephus_eliminate(circle_b, k)
+                if trace:
+                    steps.append(_snapshot(circle_a, circle_b, turn="B", eliminated=eliminated_b, phase="main"))
                 if verbose:
                     print(f" | Circle B eliminates {eliminated_b} → {list(circle_b)}", end="")
             elif verbose:
@@ -88,13 +117,18 @@ def two_circle_josephus(n: int, k: int = 2, verbose: bool = False) -> int:
             # Circle B goes first (strictly larger)
             if len(circle_b) > 1:
                 eliminated_b = josephus_eliminate(circle_b, k)
+                if trace:
+                    steps.append(_snapshot(circle_a, circle_b, turn="B", eliminated=eliminated_b, phase="main"))
                 if verbose:
                     print(f" Circle B eliminates {eliminated_b} → {list(circle_b)}", end="")
             elif verbose:
                 print(f" Circle B has 1 left ({circle_b[0]}), skips", end="")
 
+            # Then Circle A
             if len(circle_a) > 1:
                 eliminated_a = josephus_eliminate(circle_a, k)
+                if trace:
+                    steps.append(_snapshot(circle_a, circle_b, turn="A", eliminated=eliminated_a, phase="main"))
                 if verbose:
                     print(f" | Circle A eliminates {eliminated_a} → {list(circle_a)}", end="")
             elif verbose:
@@ -112,26 +146,34 @@ def two_circle_josephus(n: int, k: int = 2, verbose: bool = False) -> int:
         print(f"  Final round: Circle A survivor = {survivor_a}, Circle B survivor = {survivor_b}")
         print(f"  Mini-circle: [{survivor_a}, {survivor_b}] (Circle A person first)")
 
-    # Standard Josephus with 2 people, k=2, Circle A person goes first
     final_circle = deque([survivor_a, survivor_b])
     eliminated_final = josephus_eliminate(final_circle, k)
     winner = final_circle[0]
 
+    if trace:
+        # Represent final as a last step. We keep the winner in A for simplicity.
+        steps.append({
+            "turn": "A", # Circle A considered first in the mini-circle
+            "eliminated": eliminated_final,
+            "A": [winner],
+            "B": [],
+            "phase": "final",
+        })
+
     if verbose:
         print(f"  Eliminates {eliminated_final} → Winner: {winner}")
 
-    return winner
+    return (winner, steps) if trace else winner
 
 
 def original_josephus(n: int, k: int = 2) -> int:
     """
-    Solve the original Josephus problem using the classic formula.
+    Solve the original Josephus problem using the iterative formula.
     Returns the 1-indexed position of the survivor.
-    
-    Uses the iterative formula:
-        J(1, k) = 0
-        J(n, k) = (J(n-1, k) + k) % n
-    Then converts from 0-indexed to 1-indexed.
+
+    J(1, k) = 0
+    J(n, k) = (J(n-1, k) + k) % n
+    Then convert from 0-indexed to 1-indexed.
     """
     pos = 0
     for i in range(2, n + 1):
@@ -193,8 +235,7 @@ def analyze_pattern(max_n: int = 30):
         mid = (n + 1) // 2
         winner = two_circle_winners[n - 1]
         # The winner's position within Circle A
-        print(f"  n={n:>2}, CircleA size={mid:>2}, "
-              f"Winner={winner:>2} (position {winner} in Circle A)")
+        print(f"  n={n:>2}, CircleA size={mid:>2}, Winner={winner:>2} (position {winner} in Circle A)")
 
     # Original Josephus pattern reminder
     print("\n--- Original Josephus Pattern (for reference) ---")
@@ -215,16 +256,11 @@ def analyze_pattern(max_n: int = 30):
     for n in range(1, max_n + 1):
         mid = (n + 1) // 2
         tc_winner = two_circle_winners[n - 1]
-        # Josephus survivor of Circle A (people numbered 1..mid)
-        # The original_josephus gives position; we need to map to actual person numbers
-        circle_a_survivor_pos = original_josephus(mid)  # 1-indexed position in circle of size mid
-        # Since Circle A contains persons 1..mid in order, position i = person i
-        expected = circle_a_survivor_pos
+        expected = original_josephus(mid)  # position in circle of size mid
 
         if tc_winner != expected:
             conjecture_holds = False
-            print(f"  MISMATCH at n={n}: two-circle={tc_winner}, "
-                  f"J(CircleA size={mid})={expected}")
+            print(f"  MISMATCH at n={n}: two-circle={tc_winner}, J(CircleA size={mid})={expected}")
 
     if conjecture_holds:
         print("  Conjecture HOLDS for all n from 1 to", max_n)
@@ -232,8 +268,7 @@ def analyze_pattern(max_n: int = 30):
         print("FINAL CONJECTURE:")
         print("  For the two-circle variant with k=2:")
         print("  Winner(n) = J(ceil(n/2), 2)")
-        print("  where J(m, 2) = 2*L + 1, m = 2^p + L, 0 <= L < 2^p")
-        print("  i.e., the Josephus solution applied to the size of Circle A.")
+        print("  where J(m, 2) = 2*L + 1, m = 2^p + L and 0 <= L < 2^p")
     else:
         print("  Conjecture does NOT hold perfectly. See mismatches above.")
 

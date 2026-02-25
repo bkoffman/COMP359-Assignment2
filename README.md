@@ -160,3 +160,69 @@ To run a single simulation with verbose output:
 from two_circle_josephus import two_circle_josephus
 winner = two_circle_josephus(n=10, k=2, verbose=True)
 ```
+
+# Visualization
+
+## Interactive Visualization of the Two-Circle Josephus Variant
+
+An interactive visualization was implemented using **Matplotlib** to illustrate the execution of the two-circle Josephus variation. The visualization renders a deterministic execution trace produced by the simulation (`trace=True`) and does not recompute elimination logic independently. This guarantees consistency between the numerical results and the visual output.
+
+The visualization displays two distinct circular structures:
+
+- **Circle A** (left) — participants 1 through ⌈n/2⌉  
+- **Circle B** (right) — participants ⌈n/2⌉+1 through n  
+
+At each elimination step, the interface presents:
+
+- The current **pointer position** in each circle (front of the deque, index 0)
+- The **active circle** performing the elimination
+- The **eliminated participant**
+- The current **simulation phase** (`main` alternating elimination or `final` head-to-head)
+- The current **step index** within the execution trace
+
+Because the visualization consumes a precomputed trace, it functions as a replay mechanism rather than a second implementation of the algorithm. This design enforces correctness and reproducibility.
+
+---
+
+## Interaction Controls
+
+The visualization provides on-screen controls:
+
+- **Prev** — move one step backward in the elimination sequence  
+- **Next** — advance one step forward  
+- **Reset** — return to the initial state  
+
+This allows stepwise inspection of the elimination dynamics, pointer progression, and alternating-circle logic.
+
+---
+
+## How to Run the Visualization
+
+### Install Required Dependency
+The visualization requires Matplotlib:
+
+```bash
+pip install matplotlib
+```
+## Execute the Visualization
+From the project directory:
+```bash
+python visualize_two_circle.py
+```
+To run the visualization for a specific group size n:
+```bash
+python visualize_two_circle.py 12
+```
+
+This will:
+- Run the two-circle Josephus simulation with tracing enabled
+- Print the winner in the terminal
+- Launch an interactive window displaying the elimination sequence
+
+## Implementation Notes
+
+-Each circle is represented using collections.deque to efficiently model circular behavior.
+-The front of the deque (index 0) represents the current counting position.
+-Eliminations are performed by rotating the deque k − 1 positions and removing the front element.
+-After every elimination, a structured snapshot of both circles is recorded.
+-The visualization sequentially renders these snapshots to reproduce the algorithm’s execution deterministically.
